@@ -1,0 +1,9 @@
+[workspace]
+members = [
+				"rknpu",
+				"rknpu-sys",
+				"rknpu-runtime",
+]
+
+[workspace.dependencies]
+bindgen= "0.66"
