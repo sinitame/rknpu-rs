@@ -6,4 +6,6 @@ members = [
 ]
 
 [workspace.dependencies]
+anyhow = "1.0"
 bindgen= "0.66"
+thiserror = "1.0"
