@@ -11,13 +11,19 @@ const OS: &str = "Linux";
 
 fn main() {
     let repository_dir = download_git_repository();
-    let include_dir =
-        repository_dir.join(format!("runtime/{CPU_VERSION}/{OS}/librknn_api/include/"));
+    let include_dir = repository_dir.join(format!("runtime/{CPU_VERSION}/{OS}/librknn_api/include/"));
+    let libs_dir = repository_dir.join(format!("runtime/{CPU_VERSION}/{OS}/librknn_api/aarch64/"));
+
+    // Re-run header wrapper generation if headers changed
     let headers = read_dir(&include_dir).unwrap();
     headers.for_each(|it| {
         println!("cargo:rerun-if-changed={it:?}");
     });
     let wrapper_header_path = create_wrapper_header(include_dir);
+
+    // Look at the right rknnrt library
+    println!("cargo:rustc-link-search={libs_dir:?}");
+    println!("cargo:rustc-link-lib=rknnrt");
 
     // Generate bindings
     let bindings = bindgen::Builder::default()

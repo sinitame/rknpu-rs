@@ -40,6 +40,8 @@ pub enum RknnError {
     RKNN_ERR_INCOMPATILE_OPTIMIZATION_LEVEL_VERSION,
     #[error("This RKNN model set target platform, but not compatible with current platform.")]
     RKNN_ERR_TARGET_PLATFORM_UNMATCH,
+    #[error("Unknown error.")]
+    UNKNOWN,
 }
 
 impl From<c_int> for RknnError {
@@ -59,6 +61,7 @@ impl From<c_int> for RknnError {
             -11 => RknnError::RKNN_ERR_INCOMPATILE_PRE_COMPILE_MODEL,
             -12 => RknnError::RKNN_ERR_INCOMPATILE_OPTIMIZATION_LEVEL_VERSION,
             -13 => RknnError::RKNN_ERR_TARGET_PLATFORM_UNMATCH,
+            _ => RknnError::UNKNOWN,
         }
     }
 }
