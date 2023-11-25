@@ -10,66 +10,64 @@ use rknpu_sys::{
 };
 
 #[derive(Debug, Error)]
-#[allow(non_camel_case_types)]
 pub enum RknnError {
-    #[error("Success")]
-    RKNN_SUCC,
     #[error("Execution failed.")]
-    RKNN_ERR_FAIL,
+    Fail,
     #[error("Execution timeout.")]
-    RKNN_ERR_TIMEOUT,
+    Timeout,
     #[error("Device is unavailable.")]
-    RKNN_ERR_DEVICE_UNAVAILABLE,
+    UnavailableDevice,
     #[error("Memory malloc fail.")]
-    RKNN_ERR_MALLOC_FAIL,
+    MallocFail,
     #[error("Parameter is invalid.")]
-    RKNN_ERR_PARAM_INVALID,
+    InvalidParameter,
     #[error("Model is invalid.")]
-    RKNN_ERR_MODEL_INVALID,
+    InvalidModel,
     #[error("Context is invalid.")]
-    RKNN_ERR_CTX_INVALID,
+    InvalidContext,
     #[error("Input is invalid.")]
-    RKNN_ERR_INPUT_INVALID,
+    InvalidInput,
     #[error("Output is invalid.")]
-    RKNN_ERR_OUTPUT_INVALID,
+    InvalidOutput,
     #[error("The device is unmatch, please update rknn sdk and npu driver/firmware.")]
-    RKNN_ERR_DEVICE_UNMATCH,
+    UnmatchedDevice,
     #[error("This RKNN model use pre_compile mode, but not compatible with current driver.")]
-    RKNN_ERR_INCOMPATILE_PRE_COMPILE_MODEL,
+    IncompatibleModel,
     #[error("This RKNN model set optimization level, but not compatible with current driver.")]
-    RKNN_ERR_INCOMPATILE_OPTIMIZATION_LEVEL_VERSION,
+    IncompatibleOptimization,
     #[error("This RKNN model set target platform, but not compatible with current platform.")]
-    RKNN_ERR_TARGET_PLATFORM_UNMATCH,
+    UnmatchedTargetPlatform,
     #[error("Unknown error.")]
-    UNKNOWN,
+    Unknown,
 }
 
+#[allow(non_snake_case)]
 impl From<c_int> for RknnError {
     fn from(value: c_int) -> Self {
-        match value {
-            0 => RknnError::RKNN_SUCC,
-            -1 => RknnError::RKNN_ERR_FAIL,
-            -2 => RknnError::RKNN_ERR_TIMEOUT,
-            -3 => RknnError::RKNN_ERR_DEVICE_UNAVAILABLE,
-            -4 => RknnError::RKNN_ERR_MALLOC_FAIL,
-            -5 => RknnError::RKNN_ERR_PARAM_INVALID,
-            -6 => RknnError::RKNN_ERR_MODEL_INVALID,
-            -7 => RknnError::RKNN_ERR_CTX_INVALID,
-            -8 => RknnError::RKNN_ERR_INPUT_INVALID,
-            -9 => RknnError::RKNN_ERR_OUTPUT_INVALID,
-            -10 => RknnError::RKNN_ERR_DEVICE_UNMATCH,
-            -11 => RknnError::RKNN_ERR_INCOMPATILE_PRE_COMPILE_MODEL,
-            -12 => RknnError::RKNN_ERR_INCOMPATILE_OPTIMIZATION_LEVEL_VERSION,
-            -13 => RknnError::RKNN_ERR_TARGET_PLATFORM_UNMATCH,
-            _ => RknnError::UNKNOWN,
+        match value as i32 {
+            RKNN_ERR_FAIL => RknnError::Fail,
+            RKNN_ERR_TIMEOUT => RknnError::Timeout,
+            RKNN_ERR_DEVICE_UNAVAILABLE => RknnError::UnavailableDevice,
+            RKNN_ERR_MALLOC_FAIL => RknnError::MallocFail,
+            RKNN_ERR_PARAM_INVALID => RknnError::InvalidParameter,
+            RKNN_ERR_MODEL_INVALID => RknnError::InvalidModel,
+            RKNN_ERR_CTX_INVALID => RknnError::InvalidContext,
+            RKNN_ERR_INPUT_INVALID => RknnError::InvalidInput,
+            RKNN_ERR_OUTPUT_INVALID => RknnError::InvalidOutput,
+            RKNN_ERR_DEVICE_UNMATCH => RknnError::UnmatchedDevice,
+            RKNN_ERR_INCOMPATILE_PRE_COMPILE_MODEL => RknnError::IncompatibleModel,
+            RKNN_ERR_INCOMPATILE_OPTIMIZATION_LEVEL_VERSION => RknnError::IncompatibleOptimization,
+            RKNN_ERR_TARGET_PLATFORM_UNMATCH => RknnError::UnmatchedTargetPlatform,
+            _ => RknnError::Unknown,
         }
     }
 }
 
-pub(crate) fn check_error(rknn_error: c_int) -> Result<(), RknnError> {
-    let error = rknn_error.into();
-    match error {
-        RknnError::RKNN_SUCC => Ok(()),
-        err => Err(err),
+pub(crate) fn check_result(rknn_result: c_int) -> Result<(), RknnError> {
+    if rknn_result == 0 {
+        return Ok(());
+    } else {
+        let error = rknn_result.into();
+        return Err(error);
     }
 }
