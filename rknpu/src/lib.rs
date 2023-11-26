@@ -19,7 +19,7 @@ use rknpu_sys::{
     _rknn_init_extend, _rknn_input_output_num, _rknn_sdk_version, rknn_context, rknn_destroy,
     rknn_init, rknn_query,
 };
-use tensor::RknnTensorAttribute;
+use tensor::{RknnInputTensorAttribute, RknnOutputTensorAttribute, RknnTensorAttribute};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct RknnSdkVersion {
@@ -29,6 +29,11 @@ pub struct RknnSdkVersion {
 
 impl QueryObject for RknnSdkVersion {
     type RknnPrimitiveType = _rknn_sdk_version;
+
+    fn primitive_init_value() -> Self::RknnPrimitiveType {
+        unsafe { std::mem::zeroed::<_rknn_sdk_version>() }
+    }
+
     fn query_flag() -> RknnQuery {
         RknnQuery::RKNN_QUERY_SDK_VERSION
     }
@@ -55,6 +60,9 @@ pub struct RknnInputOutputNum {
 impl QueryObject for RknnInputOutputNum {
     type RknnPrimitiveType = _rknn_input_output_num;
 
+    fn primitive_init_value() -> Self::RknnPrimitiveType {
+        unsafe { std::mem::zeroed::<_rknn_input_output_num>() }
+    }
     fn query_flag() -> RknnQuery {
         RknnQuery::RKNN_QUERY_IN_OUT_NUM
     }
@@ -71,6 +79,7 @@ impl QueryObject for RknnInputOutputNum {
 
 pub trait QueryObject {
     type RknnPrimitiveType;
+    fn primitive_init_value() -> Self::RknnPrimitiveType;
     fn query_flag() -> RknnQuery;
     fn from_primitive_type(value: Self::RknnPrimitiveType) -> Result<Self>
     where
@@ -87,7 +96,7 @@ impl RknnContext {
     }
 
     pub fn query_context<Q: QueryObject>(&self) -> Result<Q> {
-        let mut raw_query_result = unsafe { std::mem::zeroed::<Q::RknnPrimitiveType>() };
+        let mut raw_query_result = Q::primitive_init_value();
         let ret = unsafe {
             rknn_query(
                 self.raw,
@@ -138,10 +147,17 @@ impl Model {
     pub fn num_input_outputs(&self) -> Result<RknnInputOutputNum> {
         self.context.query_context::<RknnInputOutputNum>()
     }
-    pub fn input_attribute(&self) -> Result<RknnTensorAttribute> {
-        // TODO: in orde to get the attribute of a specific input index,
-        // the _rknn_tensor_attr struct should be initialized with index equal to the input index
-        self.context.query_context::<RknnTensorAttribute>()
+    pub fn input_attribute<const T: usize>(&self) -> Result<RknnTensorAttribute> {
+        let input_attribute = self
+            .context
+            .query_context::<RknnInputTensorAttribute<T>>()?;
+        Ok(input_attribute.0)
+    }
+    pub fn output_attribute<const T: usize>(&self) -> Result<RknnTensorAttribute> {
+        let output_attribute = self
+            .context
+            .query_context::<RknnOutputTensorAttribute<T>>()?;
+        Ok(output_attribute.0)
     }
 }
 
@@ -194,9 +210,9 @@ mod test {
             n_output: 3_u32,
         };
         assert_eq!(num_input_output, expected_num_input_output);
-        let input_attributes = model.input_attribute()?;
+        let input_attributes = model.input_attribute::<0>()?;
         let expected_input_attributes = RknnTensorAttribute {
-            index: None,
+            index: 0,
             dims: vec![1, 640, 640, 3],
             name: "images".to_string(),
             len: 1228800,
@@ -208,7 +224,38 @@ mod test {
             size_with_stride: 1228800,
             pass_through: false,
         };
-        //assert_eq!(input_attributes, expected_input_attributes);
+        //TODO: Implement Eq on RknnTensorAttribute
+        assert_eq!(input_attributes.index, expected_input_attributes.index);
+        assert_eq!(input_attributes.dims, expected_input_attributes.dims);
+        assert_eq!(input_attributes.name, expected_input_attributes.name);
+        Ok(())
+    }
+
+    #[test]
+    fn test_output_attribute() -> Result<()> {
+        // TODO: remove hardcoded path by downloading assets
+        // - Don't want to re-download the git repository (but cannot access OUT_DIR in all cases)
+        // - Might use the build.rs to copy these files in a cache dir (but not sure it's a good practice)
+        let model_path = "/home/sinitame/rknpu2/examples/rknn_yolov5_demo/install/rknn_yolov5_demo_Linux/model/RK3588/yolov5s-640-640.rknn";
+        let model = Model::from_path(&model_path, RknnExtendedFlag::RKNN_FLAG_PRIOR_HIGH)?;
+        let num_input_output = model.num_input_outputs()?;
+        let expected_num_input_output = RknnInputOutputNum {
+            n_input: 1_u32,
+            n_output: 3_u32,
+        };
+        assert_eq!(num_input_output, expected_num_input_output);
+
+        let output_0 = model.output_attribute::<0>().unwrap();
+        assert_eq!(output_0.index, 0);
+        assert_eq!(output_0.dims, vec![1, 255, 80, 80]);
+
+        let output_1 = model.output_attribute::<1>().unwrap();
+        assert_eq!(output_1.index, 1);
+        assert_eq!(output_1.dims, vec![1, 255, 40, 40]);
+
+        let output_2 = model.output_attribute::<2>().unwrap();
+        assert_eq!(output_2.index, 2);
+        assert_eq!(output_2.dims, vec![1, 255, 20, 20]);
         Ok(())
     }
 }
