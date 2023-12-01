@@ -6,8 +6,9 @@ use std::{
 
 use anyhow::{Context, Result};
 use rknpu_sys::{
-    _rknn_init_extend, _rknn_input_output_num, _rknn_sdk_version, rknn_context, rknn_destroy,
-    rknn_init, rknn_query,
+    _rknn_init_extend, _rknn_input, _rknn_input_output_num, _rknn_output, _rknn_output_extend,
+    _rknn_sdk_version, rknn_context, rknn_destroy, rknn_init, rknn_inputs_set, rknn_outputs_get,
+    rknn_query,
 };
 
 use crate::{
@@ -18,6 +19,8 @@ use crate::{
         RknnInputTensorAttribute, RknnOutputTensorAttribute, RknnTensorAttribute,
     },
 };
+
+use self::{inputs::RknnInput, outputs::RknnOuput};
 
 pub mod inputs;
 pub mod memory;
@@ -75,6 +78,34 @@ impl RknnContext {
         default.index = index;
         let input_attribute = self.query_context::<RknnInputTensorAttribute>(Some(default))?;
         Ok(input_attribute.0)
+    }
+
+    pub fn set_inputs(&mut self, inputs: Vec<RknnInput>) -> Result<()> {
+        let raw_inputs: Vec<_rknn_input> = inputs.into_iter().map(|it| it.into()).collect();
+        let ret = unsafe {
+            rknn_inputs_set(
+                self.raw,
+                raw_inputs.len() as u32,
+                raw_inputs.as_ptr() as *mut _rknn_input,
+            )
+        };
+        check_result(ret)?;
+        Ok(())
+    }
+
+    pub fn get_outputs(&mut self) -> Result<Vec<RknnOuput>> {
+        let n_outputs = self.num_input_outputs()?.n_output;
+        let outputs = Vec::with_capacity(n_outputs as usize);
+        let ret = unsafe {
+            rknn_outputs_get(
+                self.raw,
+                n_outputs,
+                outputs.as_ptr() as *mut _rknn_output,
+                std::ptr::null::<_rknn_output_extend>() as *mut _rknn_output_extend,
+            )
+        };
+        check_result(ret)?;
+        Ok(outputs)
     }
     pub fn output_attribute(&self, index: u32) -> Result<RknnTensorAttribute> {
         let mut default = RknnOutputTensorAttribute::primitive_init_value();
