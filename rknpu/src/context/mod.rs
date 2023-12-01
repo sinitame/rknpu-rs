@@ -19,7 +19,9 @@ use crate::{
     },
 };
 
+pub mod inputs;
 pub mod memory;
+pub mod outputs;
 
 pub struct RknnContext {
     raw: rknn_context,
