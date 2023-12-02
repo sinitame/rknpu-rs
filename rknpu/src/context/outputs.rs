@@ -2,6 +2,7 @@ use std::ffi::c_void;
 
 use rknpu_sys::_rknn_output;
 
+#[derive(Debug)]
 pub struct RknnOuput {
     /// Transfert output data to float
     want_float: bool,
@@ -12,7 +13,22 @@ pub struct RknnOuput {
     /// Output index
     index: u32,
     /// Output data buffer
-    buffer: Vec<u8>,
+    pub buffer: Vec<u8>,
+}
+
+impl From<_rknn_output> for RknnOuput {
+    fn from(value: _rknn_output) -> Self {
+        let want_float = if value.want_float > 0 { true } else { false };
+        let is_prealloc = if value.is_prealloc > 0 { true } else { false };
+        Self {
+            want_float,
+            is_prealloc,
+            index: value.index,
+            buffer: unsafe {
+                std::slice::from_raw_parts(value.buf as *mut u8, value.size as usize).to_vec()
+            },
+        }
+    }
 }
 
 impl From<RknnOuput> for _rknn_output {

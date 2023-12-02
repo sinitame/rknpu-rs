@@ -6,20 +6,20 @@ use crate::tensors::types::{RknnTensorFormat, RknnTensorType};
 
 pub struct RknnInput {
     /// Input index.
-    index: u32,
+    pub index: u32,
     /// Input data buffer.
-    buffer: Vec<u8>,
+    pub buffer: Vec<u8>,
     /// Pass through mode
     /// - true: the data buffer is passed directly to the input node of the rknn model without any
     /// conversion. The following variables don't need to be set.
     /// - false: the data buffer is converted into an input consistent with the model according to
     /// the following type and format. The following variables need to be set.
-    pass_through: bool,
+    pub pass_through: bool,
     /// Data type of the input data.
-    dtype: RknnTensorType,
+    pub dtype: RknnTensorType,
     /// Data format of the input data (NPU accepts NCHW by default, other format will require a
     /// conversion in the driver).
-    fmt: RknnTensorFormat,
+    pub fmt: RknnTensorFormat,
 }
 
 impl From<RknnInput> for _rknn_input {

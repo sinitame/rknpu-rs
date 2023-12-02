@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use rknpu_sys::{
     _rknn_init_extend, _rknn_input, _rknn_input_output_num, _rknn_output, _rknn_output_extend,
     _rknn_sdk_version, rknn_context, rknn_destroy, rknn_init, rknn_inputs_set, rknn_outputs_get,
-    rknn_query,
+    rknn_query, rknn_run, rknn_run_extend,
 };
 
 use crate::{
@@ -80,6 +80,17 @@ impl RknnContext {
         Ok(input_attribute.0)
     }
 
+    pub fn run(&mut self) -> Result<()> {
+        let ret = unsafe {
+            rknn_run(
+                self.raw,
+                std::ptr::null::<rknn_run_extend>() as *mut rknn_run_extend,
+            )
+        };
+        check_result(ret)?;
+        Ok(())
+    }
+
     pub fn set_inputs(&mut self, inputs: Vec<RknnInput>) -> Result<()> {
         let raw_inputs: Vec<_rknn_input> = inputs.into_iter().map(|it| it.into()).collect();
         let ret = unsafe {
@@ -95,16 +106,23 @@ impl RknnContext {
 
     pub fn get_outputs(&mut self) -> Result<Vec<RknnOuput>> {
         let n_outputs = self.num_input_outputs()?.n_output;
-        let outputs = Vec::with_capacity(n_outputs as usize);
+        let raw_outputs = vec![unsafe { std::mem::zeroed::<_rknn_output>() }; n_outputs as usize];
+        //let mut raw_outputs: Vec<_rknn_output> = Vec::with_capacity(n_outputs as usize);
+        //raw_outputs
+        //    .iter_mut()
+        //    .for_each(|it| {
+        //        *it = unsafe { std::mem::zeroed::<_rknn_output>() };
+        //    });
         let ret = unsafe {
             rknn_outputs_get(
                 self.raw,
                 n_outputs,
-                outputs.as_ptr() as *mut _rknn_output,
+                raw_outputs.as_ptr() as *mut _rknn_output,
                 std::ptr::null::<_rknn_output_extend>() as *mut _rknn_output_extend,
             )
         };
         check_result(ret)?;
+        let outputs = raw_outputs.into_iter().map(|it| it.into()).collect();
         Ok(outputs)
     }
     pub fn output_attribute(&self, index: u32) -> Result<RknnTensorAttribute> {

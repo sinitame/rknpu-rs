@@ -1,6 +1,7 @@
 [workspace]
 members = [
 				"rknpu",
+				"rknpu-cli",
 				"rknpu-sys",
 				"rknpu-runtime",
 ]
@@ -8,4 +9,8 @@ members = [
 [workspace.dependencies]
 anyhow = "1.0"
 bindgen= "0.66"
+image = "0.24.7"
+imageproc = "0.23.0"
+img = "0.1.0"
+ndarray = "0.15.6"
 thiserror = "1.0"
