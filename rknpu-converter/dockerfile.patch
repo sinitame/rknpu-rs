@@ -1,0 +1,21 @@
+--- /Users/sinitame/Downloads/Dockerfile_ubuntu_18_04_for_cp36.txt	2023-12-02 14:01:36.000000000 +0100
++++ assets/Dockerfile_ubuntu_18_04_for_cp36	2023-12-02 14:02:14.000000000 +0100
+@@ -1,7 +1,5 @@
+ FROM ubuntu:18.04
+ 
+-COPY sources_bionic.list /etc/apt/sources.list
+-
+ ENV DEBIAN_FRONTEND=noninteractive
+ 
+ RUN apt-get update \
+@@ -16,9 +14,7 @@
+ 	&& ln -sfn pip3 pip \
+ 	&& ls -al
+ 
+-RUN python -m pip install --upgrade pip -i https://mirror.baidu.com/pypi/simple --trusted-host=mirror.baidu.com
+-RUN pip3 config set global.index-url https://mirror.baidu.com/pypi/simple
+-RUN pip3 config set install.trusted-host mirror.baidu.com
++RUN python -m pip install --upgrade pip
+ 
+ RUN python3 --version
+ RUN pip3 --version
