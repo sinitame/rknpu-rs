@@ -20,6 +20,16 @@ pub enum RknnTensorQuantFormat {
     AffineScale(i32, f32),
 }
 
+impl RknnTensorQuantFormat {
+    pub fn zp_scale(&self) -> Option<(i32, f32)> {
+        match self {
+            Self::None => None,
+            Self::AffineScale(zp, scale) => Some((*zp, *scale)),
+            Self::DynamicFixedPoint(_) => None,
+        }
+    }
+}
+
 #[allow(non_upper_case_globals)]
 impl RknnTensorQuantFormat {
     pub fn from_spec(
