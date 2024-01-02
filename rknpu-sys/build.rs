@@ -4,16 +4,14 @@ use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::process::Command;
 
-const GIT_REPOSITORY: &str = "https://github.com/rockchip-linux/rknpu2.git";
-const VERSION: &str = "1.5.2";
-const CPU_VERSION: &str = "RK3588";
+const GIT_REPOSITORY: &str = "https://github.com/rockchip-linux/rknn-toolkit2";
+const VERSION: &str = "1.6.0";
 const OS: &str = "Linux";
 
 fn main() {
     let repository_dir = download_git_repository();
-    let include_dir =
-        repository_dir.join(format!("runtime/{CPU_VERSION}/{OS}/librknn_api/include/"));
-    let libs_dir = repository_dir.join(format!("runtime/{CPU_VERSION}/{OS}/librknn_api/aarch64/"));
+    let include_dir = repository_dir.join(format!("rknpu2/runtime/{OS}/librknn_api/include/"));
+    let libs_dir = repository_dir.join(format!("rknpu2/runtime/{OS}/librknn_api/aarch64/"));
 
     // Re-run header wrapper generation if headers changed
     let headers = read_dir(&include_dir).unwrap();
@@ -53,7 +51,7 @@ fn create_wrapper_header(include_dir: PathBuf) -> PathBuf {
 
 fn download_git_repository() -> PathBuf {
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let repository_path = out_dir.join("rknpu2");
+    let repository_path = out_dir.join("rknn-toolkit2");
     println!("{out_dir:?}");
     if !repository_path.join(".git").exists() {
         println!("Creating directory {:?}", repository_path);
