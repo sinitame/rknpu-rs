@@ -238,7 +238,7 @@ pub fn iou(a: &YoloDetection, b: &YoloDetection) -> f32 {
 
 #[cfg(test)]
 mod test {
-    use ndarray::{Array1, Array3, Axis};
+    use ndarray::{Array3, Axis};
 
     #[test]
     fn test_raw_output_to_array() {
@@ -247,22 +247,8 @@ mod test {
         let raw_output = vec![11, 21, 31, 41, 12, 22, 32, 42, 13, 23, 33, 43];
 
         let output = Array3::from_shape_vec((1, 3, 2 * 2), raw_output).unwrap();
-        //let out = output.permuted_axes((0, 2, 1));
-        let mut grid_id = 1;
         for row in output.axis_iter(Axis(2)) {
-            //let expected = Array1::from_shape_vec(3, (1..4).map(|it| it + 10* grid_id).collect::<Vec<_>>()).unwrap();
-            //assert_eq!(row, expected);
             assert!(row.to_owned().as_slice().is_some());
-            grid_id += 1;
         }
     }
 }
-
-//
-//   int stride0 = 8;
-//  int grid_h0 = model_in_h / stride0;
-//  int grid_w0 = model_in_w / stride0;
-//int8_t box_confidence = input[(PROP_BOX_SIZE * a + 4) * grid_len + i * grid_w + j];
-
-//#define NMS_THRESH 0.45
-//#define BOX_THRESH 0.25
