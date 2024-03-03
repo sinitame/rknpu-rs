@@ -106,13 +106,13 @@ impl RknnContext {
 
     pub fn get_outputs(&mut self) -> Result<Vec<RknnOuput>> {
         let n_outputs = self.num_input_outputs()?.n_output;
-        let raw_outputs = vec![unsafe { std::mem::zeroed::<_rknn_output>() }; n_outputs as usize];
+        let mut raw_outputs =
+            vec![unsafe { std::mem::zeroed::<_rknn_output>() }; n_outputs as usize];
         //let mut raw_outputs: Vec<_rknn_output> = Vec::with_capacity(n_outputs as usize);
-        //raw_outputs
-        //    .iter_mut()
-        //    .for_each(|it| {
-        //        *it = unsafe { std::mem::zeroed::<_rknn_output>() };
-        //    });
+        raw_outputs.iter_mut().enumerate().for_each(|(idx, it)| {
+            it.index = idx as u32;
+            it.want_float = false as u8;
+        });
         let ret = unsafe {
             rknn_outputs_get(
                 self.raw,

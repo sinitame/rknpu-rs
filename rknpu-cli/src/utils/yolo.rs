@@ -11,7 +11,7 @@ pub fn quantize_value(x: f32, zp: i32, scale: f32) -> u8 {
     (((x / scale).round() as i32) + zp).clamp(u8::min_value() as i32, u8::max_value() as i32) as u8
 }
 
-pub fn dequantize_value(x: u8, zp: i32, scale: f32) -> f32 {
+pub fn dequantize_value(x: i8, zp: i32, scale: f32) -> f32 {
     (x as i32 - zp) as f32 * scale
 }
 
@@ -37,14 +37,17 @@ pub fn load_image<P: AsRef<Path>>(
     quant_fmt: RknnTensorQuantFormat,
 ) -> Result<Vec<u8>> {
     // Input pre-processing
-    let image = image::open(image_path).unwrap().to_rgb8();
+    let image = image::open(&image_path).unwrap().to_rgb8();
+    let raw_image = image::open(&image_path).unwrap().to_bytes();
+    dbg!(&raw_image[630..650]);
     let resized =
         image::imageops::resize(&image, 640, 640, ::image::imageops::FilterType::Triangle);
-    let image = ndarray::Array4::from_shape_fn((1, 3, 640, 640), |(_, c, y, x)| {
-        resized[(x as _, y as _)][c] as f32 / 255.0
-    });
-    let quant_image = quantize_data(image, quant_fmt)?;
-    Ok(quant_image.into_raw_vec())
+    //let image = ndarray::Array4::from_shape_fn((1, 3, 640, 640), |(_, c, y, x)| {
+    //    resized[(x as _, y as _)][c] as f32 / 255.0
+    //});
+    //let quant_image = quantize_data(image, quant_fmt)?;
+    //Ok(quant_image.into_raw_vec())
+    Ok(resized.into_vec())
 }
 
 const OBJ_CLASS_NUM: usize = 80;
@@ -68,8 +71,10 @@ impl YoloDetection {
     }
 
     // Apply adjustment is not systematic as it can be applied in the model directly
-    fn from_raw_u8(
-        raw: &[u8],
+    fn from_raw_i8(
+        raw: &[i8],
+        i: usize,
+        j: usize,
         anchor: Option<&Anchor>,
         img_w: f32,
         img_h: f32,
@@ -86,29 +91,38 @@ impl YoloDetection {
         } else {
             box_x
         };
+        print!("box_x {},", box_x);
         let box_y = dequantize_value(*cy, zp, scale);
         let box_y = if apply_adjustment {
             Self::grid_sensitivity_adjustment_pos(box_y)
         } else {
             box_y
         };
+        print!("box_y {},", box_y);
         let box_w = dequantize_value(*w, zp, scale);
         let box_w = if let Some(anchor) = anchor {
             Self::grid_sensitivity_adjustment_size(box_w, anchor.width)
         } else {
             box_w
         };
+        print!("box_w {},", box_w);
         let box_h = dequantize_value(*h, zp, scale);
         let box_h = if let Some(anchor) = anchor {
             Self::grid_sensitivity_adjustment_size(box_h, anchor.height)
         } else {
             box_h
         };
+        print!("box_h {},", box_h);
+        println!("");
         Ok(YoloDetection {
-            x: (box_x - box_w / 2.0) / img_w,
-            y: (box_y - box_h / 2.0) / img_h,
-            width: (box_w / img_w),
-            height: (box_h / img_h),
+            //x: (box_x - box_w / 2.0) / img_w,
+            //y: (box_y - box_h / 2.0) / img_h,
+            //width: (box_w / img_w),
+            //height: (box_h / img_h),
+            x: (box_x - box_w / 2.0),
+            y: (box_y - box_h / 2.0),
+            width: box_w,
+            height: box_h,
             class_index: classes_confidences
                 .iter()
                 .enumerate()
@@ -126,7 +140,7 @@ impl YoloDetection {
     // In the end, output is rescaled from [0, 1] to [-0.5, 1.5] (centered around 0.5)
     fn grid_sensitivity_adjustment_pos(x: f32) -> f32 {
         let alpha = 2.0;
-        x * alpha + (alpha - 1.0) * 0.5
+        x * alpha - (alpha - 1.0) * 0.5
     }
 
     fn grid_sensitivity_adjustment_size(x: f32, anchor_x: usize) -> f32 {
@@ -134,6 +148,7 @@ impl YoloDetection {
     }
 }
 
+#[derive(Debug)]
 pub struct Anchor {
     pub height: usize,
     pub width: usize,
@@ -169,12 +184,21 @@ pub fn process_result(
             Ok(n_anchors)
         },
     )?;
-    let output =
-        Array3::from_shape_vec((1, PROP_BOX_SIZE * n_anchors, grid_x * grid_y), out_buffer)?;
+
+    // Interpret output as i8 instead of u8
+    // TODO: handle that properly from the output
+    let out_buffer_i8 = out_buffer.into_iter().map(|it| it as i8).collect();
+    let output = Array3::from_shape_vec(
+        (1, PROP_BOX_SIZE * n_anchors, grid_x * grid_y),
+        out_buffer_i8,
+    )?;
+
     // We iterate other each grid point
     Ok(output
         .axis_iter(Axis(2))
-        .flat_map(|anchors_data| -> Vec<_> {
+        .take(2)
+        .enumerate()
+        .flat_map(|(element_idx, anchors_data)| -> Vec<_> {
             anchors_data
                 .to_owned()
                 .as_slice()
@@ -182,15 +206,21 @@ pub fn process_result(
                 .chunks(PROP_BOX_SIZE)
                 .enumerate()
                 .map(|(idx, it)| {
-                    YoloDetection::from_raw_u8(
+                    let i = element_idx % grid_x;
+                    let j = element_idx / grid_x;
+                    let out = YoloDetection::from_raw_i8(
                         it,
+                        i,
+                        j,
                         anchors.as_ref().map(|it| &it[idx]),
                         img_w as f32,
                         img_h as f32,
                         zp,
                         scale,
                         true,
-                    )
+                    );
+                    println!("{out:?}");
+                    out
                 })
                 .collect()
         })

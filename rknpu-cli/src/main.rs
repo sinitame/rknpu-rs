@@ -1,9 +1,10 @@
-use std::time::Instant;
+use std::{fs::File, io::Read, time::Instant};
 
 use anyhow::Result;
 use rknpu::{
     context::{inputs::RknnInput, RknnContext},
     flags::RknnExtendedFlag,
+    tensors::types::{RknnTensorFormat, RknnTensorQuantFormat, RknnTensorType},
 };
 
 use crate::utils::yolo::{
@@ -30,17 +31,41 @@ fn main() -> Result<()> {
 
     for out_idx in 0..rknn_runtime.num_input_outputs()?.n_output {
         let out_attribute = rknn_runtime.output_attribute(out_idx)?;
-        dbg!(&out_attribute.dims);
+        dbg!(&out_attribute);
     }
 
     let input_quant_fmt = input_attribute.quant_type;
     let input_raw_data = load_image(image_path, input_quant_fmt)?;
+    // Compare input
+    let mut file = File::open("/home/sinitame/dev/rknn-toolkit2/rknpu2/examples/rknn_yolov5_demo/install/rknn_yolov5_demo_Linux/input.bin")?;
+
+    let mut file_contents = Vec::new();
+    file.read_to_end(&mut file_contents)?;
+
+    let mut diff_indices = vec![];
+    let mut diff_values = vec![];
+
+    for (idx, (rs_v, cpp_v)) in input_raw_data.iter().zip(file_contents.iter()).enumerate() {
+        let diff = rs_v.abs_diff(*cpp_v);
+        if diff > 0 {
+            diff_indices.push(idx);
+            diff_values.push(diff)
+        }
+    }
+    println!("Num incorrect elements: {}", diff_values.len());
+    println!(
+        "Proportion of incorrect elements: {}",
+        diff_values.len() as f32 / input_raw_data.len() as f32
+    );
+    println!("Num elements rs: {}", input_raw_data.len());
+    println!("Num elements cpp: {}", file_contents.len());
+
     let input = RknnInput {
         index: 0,
-        buffer: input_raw_data,
-        pass_through: true,
-        dtype: input_attribute.data_type,
-        fmt: input_attribute.format,
+        buffer: file_contents.clone(),
+        pass_through: false,
+        dtype: RknnTensorType::U8,
+        fmt: RknnTensorFormat::NHWC,
     };
 
     let start_set_input = Instant::now();
