@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 anyhow.workspace = true
+half.workspace = true
 thiserror.workspace = true
 rknpu-sys = {path = "../rknpu-sys/"}

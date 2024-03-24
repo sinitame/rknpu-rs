@@ -1,6 +1,7 @@
 pub mod context;
 pub mod error;
 pub mod flags;
+pub mod matmul;
 pub mod queries;
 pub mod tensors;
 
