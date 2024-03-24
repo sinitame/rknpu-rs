@@ -145,6 +145,8 @@ mod test {
 
     use half::f16;
 
+    use super::{RknnMatmul, RknnMatmulInfo, RknnMatmulType};
+
     fn matmul<T: Mul<T, Output = T> + AddAssign<T> + Default + Copy + Clone>(
         a: &[T],
         b: &[T],
@@ -157,7 +159,7 @@ mod test {
             for j in 0..n {
                 let mut acc = T::default();
                 for k_idx in 0..k {
-                    acc += a[i * k + k_idx] * b[i * n + j]
+                    acc += a[i * k + k_idx] * b[k_idx * n + j]
                 }
                 c[i * n + j] = acc;
             }
@@ -167,20 +169,60 @@ mod test {
     }
 
     #[test]
-    fn test_matmu_ref() {
+    fn test_matmul_ref_f32() {
         let a = [1.0, 2.0, 3.0, 4.0];
         let b = [1.0, 2.0, 3.0, 4.0];
         let res = matmul(a.as_slice(), b.as_slice(), 2, 2, 2);
-        dbg!(res);
+        assert_eq!(res, vec![7.0, 10.0, 15.0, 22.0]);
     }
 
     #[test]
-    fn test_simple_matmul() {
-        let a = (0..512 * 512)
-            .map(|x| f16::from_f32(x as f32))
+    fn test_matmul_ref_f16() {
+        let a = [1.0, 2.0, 3.0, 4.0]
+            .iter()
+            .map(|it| f16::from_f32(*it))
             .collect::<Vec<f16>>();
-        let b = (0..512 * 512)
-            .map(|x| f16::from_f32(x as f32))
+        let b = [1.0, 2.0, 3.0, 4.0]
+            .iter()
+            .map(|it| f16::from_f32(*it))
             .collect::<Vec<f16>>();
+        let res = matmul(a.as_slice(), b.as_slice(), 2, 2, 2);
+        assert_eq!(
+            res,
+            [7.0, 10.0, 15.0, 22.0]
+                .iter()
+                .map(|it| f16::from_f32(*it))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_matmul_npu_f16() {
+        let a = (0..32 * 32)
+            .map(|x| f16::from_f32(1.0))
+            .collect::<Vec<f16>>();
+        let b = (0..32 * 32)
+            .map(|x| f16::from_f32(2.0))
+            .collect::<Vec<f16>>();
+
+        let matmul_infos = RknnMatmulInfo::new(
+            32,
+            32,
+            32,
+            RknnMatmulType::RKNN_FLOAT16_MM_FLOAT16_TO_FLOAT32,
+        );
+        let mut rknn_matmul = RknnMatmul::new(matmul_infos).unwrap();
+
+        let raw_a = unsafe { std::slice::from_raw_parts(a.as_ptr() as *const u8, a.len() * 4) };
+        let raw_b = unsafe { std::slice::from_raw_parts(a.as_ptr() as *const u8, a.len() * 4) };
+        let raw_c = vec![0_u8; 32 * 32 * std::mem::size_of::<f16>()];
+        rknn_matmul.run(raw_a, raw_b, raw_c.as_slice()).unwrap();
+
+        let c =
+            unsafe { std::slice::from_raw_parts(raw_c.as_ptr() as *const f16, raw_c.len() / 4) };
+        let ref_c = matmul(a.as_slice(), b.as_slice(), 32, 32, 32);
+        //assert_eq!(c, ref_c);
+        dbg!(ref_c[..10]);
+        dbg!(c[..10]);
     }
 }
