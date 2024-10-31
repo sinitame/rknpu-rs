@@ -1,6 +1,7 @@
 pub mod context;
 pub mod error;
 pub mod flags;
+pub mod matmul;
 pub mod queries;
 pub mod tensors;
 
@@ -23,7 +24,7 @@ mod test {
 
     fn load_ctx() -> Arc<RknnContext> {
         Arc::clone(CTX.get_or_init(|| {
-            let model_path = "/home/sinitame/mnist_model_quant.rknn";
+            let model_path = "./assets/mnist_model_quant.rknn";
             let ctx =
                 RknnContext::from_model_path(&model_path, RknnExtendedFlag::RKNN_FLAG_PRIOR_HIGH)
                     .unwrap();
