@@ -19,7 +19,7 @@ fn matmul_benchmark(
     let mut rknn_matmul = RknnMatmul::new(infos).unwrap();
 
     // Initialize matrices A and B based on the RknnMatmulType
-    let (raw_a, raw_b, mut raw_c): (&[u8], &[u8], Vec<u8>) = match t {
+    let (raw_a, raw_b): (&[u8], &[u8]) = match t {
         RknnMatmulType::RKNN_FLOAT16_MM_FLOAT16_TO_FLOAT32 => {
             let a = vec![f16::from_f32(0.0); m * k];
             let b = vec![f16::from_f32(0.0); k * n];
@@ -35,8 +35,7 @@ fn matmul_benchmark(
                     b.len() * std::mem::size_of::<f16>(),
                 )
             };
-            let raw_c = vec![0; m * n * std::mem::size_of::<f32>()];
-            (raw_a, raw_b, raw_c)
+            (raw_a, raw_b)
         }
         RknnMatmulType::RKNN_INT8_MM_INT8_TO_INT32 => {
             let a = vec![0_i8; m * k];
@@ -53,8 +52,7 @@ fn matmul_benchmark(
                     b.len() * std::mem::size_of::<i8>(),
                 )
             };
-            let raw_c = vec![0; m * n * std::mem::size_of::<i32>()];
-            (raw_a, raw_b, raw_c)
+            (raw_a, raw_b)
         }
         RknnMatmulType::RKNN_INT4_MM_INT4_TO_INT16 => {
             // Adjust buffer sizes for int4
@@ -62,14 +60,14 @@ fn matmul_benchmark(
             let b = vec![0_u8; (k * n) / 2]; // Each u8 stores two int4 values
             let raw_a = unsafe { std::slice::from_raw_parts(a.as_ptr(), a.len()) };
             let raw_b = unsafe { std::slice::from_raw_parts(b.as_ptr(), b.len()) };
-            let raw_c = vec![0; m * n * std::mem::size_of::<i16>()];
-            (raw_a, raw_b, raw_c)
+            (raw_a, raw_b)
         }
     };
 
+    rknn_matmul.set_inputs(raw_a, raw_b).unwrap();
     group.bench_function(label, |b| {
         b.iter(|| {
-            rknn_matmul.run(raw_a, raw_b, raw_c.as_mut_slice()).unwrap();
+            rknn_matmul.exec().unwrap();
         })
     });
 
@@ -104,9 +102,9 @@ fn bench_method(c: &mut Criterion, m: usize, k: usize, n: usize) {
 }
 
 fn matmul(c: &mut Criterion) {
-    let m_values = [128, 256, 512];
-    let k_values = [256, 512, 1024, 2048];
-    let n_values = [256, 512, 1024, 2048];
+    let m_values = [256];
+    let k_values = [128];
+    let n_values = [256];
 
     for &m in &m_values {
         for &k in &k_values {

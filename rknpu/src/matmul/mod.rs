@@ -107,7 +107,7 @@ impl RknnMatmul {
         &self.infos
     }
 
-    pub fn run(&mut self, a: &[u8], b: &[u8], c: &[u8]) -> Result<()> {
+    pub fn set_inputs(&mut self, a: &[u8], b: &[u8]) -> Result<()> {
         unsafe {
             copy_nonoverlapping(
                 a.as_ptr() as *mut c_void,
@@ -136,16 +136,30 @@ impl RknnMatmul {
             ))?;
         };
 
-        let ret = unsafe { rknn_matmul_run(self.ctx_ptr) };
-        check_result(ret)?;
+        Ok(())
+    }
 
+    pub fn get_output(&mut self, c: &mut [u8]) -> Result<()> {
         unsafe {
             copy_nonoverlapping(
                 (*self.c_buffer.as_ptr()).virt_addr,
                 c.as_ptr() as *mut c_void,
                 (*self.c_buffer.as_ptr()).size as usize,
             );
-        }
+        };
+        Ok(())
+    }
+
+    pub fn exec(&mut self) -> Result<()> {
+        let ret = unsafe { rknn_matmul_run(self.ctx_ptr) };
+        check_result(ret)?;
+        Ok(())
+    }
+
+    pub fn run(&mut self, a: &[u8], b: &[u8], c: &mut [u8]) -> Result<()> {
+        self.set_inputs(a, b)?;
+        self.exec()?;
+        self.get_output(c)?;
         Ok(())
     }
 }
@@ -203,17 +217,14 @@ mod test {
 
     #[test]
     fn test_matmul_npu_f16() {
-        let a = (0..32 * 32)
-            .map(|_| f16::from_f32(1.0))
-            .collect::<Vec<f16>>();
-        let b = (0..32 * 32)
-            .map(|_| f16::from_f32(2.0))
-            .collect::<Vec<f16>>();
+        let (m, k, n) = (64, 256, 256);
+        let a = (0..m * k).map(|_| f16::from_f32(1.0)).collect::<Vec<f16>>();
+        let b = (0..k * n).map(|_| f16::from_f32(2.0)).collect::<Vec<f16>>();
 
         let matmul_infos = RknnMatmulInfo::new(
-            32,
-            32,
-            32,
+            m,
+            k,
+            n,
             RknnMatmulType::RKNN_FLOAT16_MM_FLOAT16_TO_FLOAT32,
             false,
             false,
@@ -232,8 +243,8 @@ mod test {
                 b.len() * std::mem::size_of::<f16>(),
             )
         };
-        let raw_c: Vec<u8> = vec![0; 32 * 32 * std::mem::size_of::<f32>()];
-        rknn_matmul.run(raw_a, raw_b, raw_c.as_slice()).unwrap();
+        let mut raw_c: Vec<u8> = vec![0; m * n * std::mem::size_of::<f32>()];
+        rknn_matmul.run(raw_a, raw_b, raw_c.as_mut_slice()).unwrap();
 
         let c = unsafe {
             std::slice::from_raw_parts(
@@ -241,7 +252,7 @@ mod test {
                 raw_c.len() / std::mem::size_of::<f32>(),
             )
         };
-        let ref_c = matmul(a.as_slice(), b.as_slice(), 32, 32, 32);
+        let ref_c = matmul(a.as_slice(), b.as_slice(), m, k, n);
         assert_eq!(c, ref_c);
     }
 }
