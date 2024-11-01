@@ -10,3 +10,10 @@ anyhow.workspace = true
 half.workspace = true
 thiserror.workspace = true
 rknpu-sys = {path = "../rknpu-sys/"}
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "matmul"
+harness = false
