@@ -3,7 +3,7 @@ use std::{
     ptr::{copy_nonoverlapping, NonNull},
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use rknpu_sys::{
     _rknn_matmul_type, _rknn_matmul_type_RKNN_FLOAT16_MM_FLOAT16_TO_FLOAT32,
     _rknn_matmul_type_RKNN_INT4_MM_INT4_TO_INT16, _rknn_matmul_type_RKNN_INT8_MM_INT8_TO_INT32,
@@ -189,6 +189,27 @@ impl RknnMatmul {
         self.exec()?;
         self.get_output(c)?;
         Ok(())
+    }
+}
+
+impl Drop for RknnMatmul {
+    fn drop(&mut self) {
+        let ret = unsafe { rknn_destroy_mem(self.ctx_ptr, self.a_buffer.as_ptr()) };
+        check_result(ret)
+            .context("While destroying a_buffer")
+            .unwrap();
+        let ret = unsafe { rknn_destroy_mem(self.ctx_ptr, self.b_buffer.as_ptr()) };
+        check_result(ret)
+            .context("While destroying b_buffer")
+            .unwrap();
+        let ret = unsafe { rknn_destroy_mem(self.ctx_ptr, self.c_buffer.as_ptr()) };
+        check_result(ret)
+            .context("While destroying c_buffer")
+            .unwrap();
+        let ret = unsafe { rknn_matmul_destroy(self.ctx_ptr) };
+        check_result(ret)
+            .context("While destroying matmul object")
+            .unwrap();
     }
 }
 
