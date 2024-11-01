@@ -138,12 +138,9 @@ fn bench_method(c: &mut Criterion, m: usize, k: usize, n: usize) {
 }
 
 fn matmul(c: &mut Criterion) {
-    //let m_values = [4, 8, 64, 128, 256];
-    //let k_values = [256, 512, 1024, 2048, 4096];
-    //let n_values = [256, 512, 1024, 2048, 4096];
-    let m_values = [4, 8];
-    let k_values = [256];
-    let n_values = [256];
+    let m_values = [4, 8, 64, 128, 256];
+    let k_values = [256, 512, 1024, 2048, 4096];
+    let n_values = [256, 512, 1024, 2048, 4096];
 
     for &m in &m_values {
         for &k in &k_values {
