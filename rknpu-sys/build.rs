@@ -4,8 +4,8 @@ use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::process::Command;
 
-const GIT_REPOSITORY: &str = "https://github.com/rockchip-linux/rknn-toolkit2";
-const VERSION: &str = "1.6.0";
+const GIT_REPOSITORY: &str = "https://github.com/airockchip/rknn-toolkit2";
+const VERSION: &str = "2.2.0";
 const OS: &str = "Linux";
 
 fn main() {

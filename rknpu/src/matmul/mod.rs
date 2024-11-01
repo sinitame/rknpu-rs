@@ -7,8 +7,9 @@ use anyhow::{anyhow, Result};
 use rknpu_sys::{
     _rknn_matmul_type, _rknn_matmul_type_RKNN_FLOAT16_MM_FLOAT16_TO_FLOAT32,
     _rknn_matmul_type_RKNN_INT4_MM_INT4_TO_INT16, _rknn_matmul_type_RKNN_INT8_MM_INT8_TO_INT32,
-    rknn_create_mem, rknn_matmul_create, rknn_matmul_ctx, rknn_matmul_info, rknn_matmul_io_attr,
-    rknn_matmul_run, rknn_matmul_set_io_mem, rknn_tensor_mem,
+    rknn_create_mem, rknn_destroy_mem, rknn_matmul_create, rknn_matmul_ctx, rknn_matmul_destroy,
+    rknn_matmul_info, rknn_matmul_io_attr, rknn_matmul_run, rknn_matmul_set_io_mem,
+    rknn_tensor_mem,
 };
 
 use crate::error::check_result;
@@ -23,13 +24,26 @@ pub enum RknnMatmulType {
 }
 
 #[derive(Debug, Clone)]
+#[repr(i16)]
+pub enum QuantType {
+    Layer = 0,
+    Channel = 1,
+    Group = 2,
+}
+
+#[derive(Debug, Clone)]
 pub struct RknnMatmulInfo {
     m: usize,
     k: usize,
     n: usize,
     mm_type: RknnMatmulType,
     b_native_layout: bool,
+    b_quant_type: QuantType,
     ac_native_layout: bool,
+    ac_quant_type: QuantType,
+    iommu_domain_id: i32,
+    group_size: i16,
+    reserved: [i8; 34],
 }
 
 impl RknnMatmulInfo {
@@ -39,7 +53,11 @@ impl RknnMatmulInfo {
         n: usize,
         mm_type: RknnMatmulType,
         b_native_layout: bool,
+        b_quant_type: QuantType,
         ac_native_layout: bool,
+        ac_quant_type: QuantType,
+        iommu_domain_id: usize,
+        group_size: Option<usize>,
     ) -> Self {
         Self {
             m,
@@ -47,7 +65,12 @@ impl RknnMatmulInfo {
             n,
             mm_type,
             b_native_layout,
+            b_quant_type,
             ac_native_layout,
+            ac_quant_type,
+            iommu_domain_id: iommu_domain_id as i32,
+            group_size: group_size.unwrap_or(0) as i16,
+            reserved: [0; 34],
         }
     }
 }
@@ -59,8 +82,13 @@ impl From<RknnMatmulInfo> for rknn_matmul_info {
             K: v.k as i32,
             N: v.n as i32,
             type_: v.mm_type as _rknn_matmul_type,
-            B_layout: v.b_native_layout as i32,
-            AC_layout: v.ac_native_layout as i32,
+            B_layout: v.b_native_layout as i16,
+            B_quant_type: v.b_quant_type as i16,
+            AC_layout: v.ac_native_layout as i16,
+            AC_quant_type: v.ac_quant_type as i16,
+            group_size: v.group_size,
+            iommu_domain_id: v.iommu_domain_id,
+            reserved: v.reserved,
         }
     }
 }
@@ -170,6 +198,8 @@ mod test {
 
     use half::f16;
 
+    use crate::matmul::QuantType;
+
     use super::{RknnMatmul, RknnMatmulInfo, RknnMatmulType};
 
     fn matmul<T: Mul<T, Output = T> + Default + AddAssign<T> + Into<f32> + Copy + Clone>(
@@ -227,7 +257,11 @@ mod test {
             n,
             RknnMatmulType::RKNN_FLOAT16_MM_FLOAT16_TO_FLOAT32,
             false,
+            QuantType::Layer,
             false,
+            QuantType::Layer,
+            0,
+            None,
         );
         let mut rknn_matmul = RknnMatmul::new(matmul_infos).unwrap();
 
