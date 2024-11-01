@@ -10,16 +10,30 @@ fn matmul_benchmark(
     t: RknnMatmulType,
     label: &str,
     b_layout: bool,
+    b_quant_type: QuantType,
     ac_layout: bool,
+    ac_quant_type: QuantType,
+    group_size: Option<usize>,
 ) {
-    let mut group = c.benchmark_group(format!("{}x{}x{} {}", m, k, n, label));
+    let mut group = c.benchmark_group(format!("{}x{}x{}", m, k, n));
     group.throughput(Throughput::Elements((m * k * n) as _));
 
-    let infos = RknnMatmulInfo::new(m, k, n, t.clone(), b_layout, ac_layout);
+    let infos = RknnMatmulInfo::new(
+        m,
+        k,
+        n,
+        t.clone(),
+        b_layout,
+        b_quant_type,
+        ac_layout,
+        ac_quant_type,
+        0,
+        group_size,
+    );
     let mut rknn_matmul = RknnMatmul::new(infos).unwrap();
 
     // Initialize matrices A and B based on the RknnMatmulType
-    let (raw_a, raw_b): (&[u8], &[u8]) = match t {
+    match t {
         RknnMatmulType::RKNN_FLOAT16_MM_FLOAT16_TO_FLOAT32 => {
             let a = vec![f16::from_f32(0.0); m * k];
             let b = vec![f16::from_f32(0.0); k * n];
@@ -35,7 +49,7 @@ fn matmul_benchmark(
                     b.len() * std::mem::size_of::<f16>(),
                 )
             };
-            (raw_a, raw_b)
+            rknn_matmul.set_inputs(raw_a, raw_b).unwrap();
         }
         RknnMatmulType::RKNN_INT8_MM_INT8_TO_INT32 => {
             let a = vec![0_i8; m * k];
@@ -52,7 +66,7 @@ fn matmul_benchmark(
                     b.len() * std::mem::size_of::<i8>(),
                 )
             };
-            (raw_a, raw_b)
+            rknn_matmul.set_inputs(raw_a, raw_b).unwrap();
         }
         RknnMatmulType::RKNN_INT4_MM_INT4_TO_INT16 => {
             // Adjust buffer sizes for int4
@@ -60,11 +74,10 @@ fn matmul_benchmark(
             let b = vec![0_u8; (k * n) / 2]; // Each u8 stores two int4 values
             let raw_a = unsafe { std::slice::from_raw_parts(a.as_ptr(), a.len()) };
             let raw_b = unsafe { std::slice::from_raw_parts(b.as_ptr(), b.len()) };
-            (raw_a, raw_b)
+            rknn_matmul.set_inputs(raw_a, raw_b).unwrap();
         }
     };
 
-    rknn_matmul.set_inputs(raw_a, raw_b).unwrap();
     group.bench_function(label, |b| {
         b.iter(|| {
             rknn_matmul.exec().unwrap();
@@ -80,31 +93,54 @@ fn bench_method(c: &mut Criterion, m: usize, k: usize, n: usize) {
             "float16",
             RknnMatmulType::RKNN_FLOAT16_MM_FLOAT16_TO_FLOAT32,
             true,
+            QuantType::Layer,
             true,
+            QuantType::Layer,
+            None,
         ),
         (
             "int8",
             RknnMatmulType::RKNN_INT8_MM_INT8_TO_INT32,
             true,
+            QuantType::Layer,
             true,
+            QuantType::Layer,
+            None,
         ),
         (
             "int4",
             RknnMatmulType::RKNN_INT4_MM_INT4_TO_INT16,
             true,
+            QuantType::Layer,
             true,
+            QuantType::Layer,
+            None,
         ),
     ];
 
-    for (label, matmul_type, b_layout, ac_layout) in matmul_variants.into_iter() {
-        matmul_benchmark(c, m, k, n, matmul_type, label, b_layout, ac_layout);
+    for (label, matmul_type, b_layout, b_quant_type, ac_layout, ac_quant_type, group_size) in
+        matmul_variants.into_iter()
+    {
+        matmul_benchmark(
+            c,
+            m,
+            k,
+            n,
+            matmul_type,
+            label,
+            b_layout,
+            b_quant_type,
+            ac_layout,
+            ac_quant_type,
+            group_size,
+        );
     }
 }
 
 fn matmul(c: &mut Criterion) {
-    let m_values = [256];
-    let k_values = [128];
-    let n_values = [256];
+    let m_values = [4, 8, 64, 128, 256];
+    let k_values = [256, 512, 1024, 2048, 4096];
+    let n_values = [256, 512, 1024, 2048, 4096];
 
     for &m in &m_values {
         for &k in &k_values {
